@@ -102,6 +102,16 @@ check("closed tabs are the known agents without a tab",
 check("emptying known reopens closed tabs",
   addresses(common.plan(data, { ["mini/t6"] = true }, {}, cfg).create), { "t2", "t3" })
 
+-- machines
+local here_only = common.config({ machines = "local", include = "all" })
+check("machines defaults to all", cfg.machines, "all")
+check("config rejects a bad machines", (pcall(common.config, { machines = "mine" })), false)
+check('machines = "local" leaves another machine\'s terminals out',
+  { common.is_agent({ address = "mini/t6", agent = "claude" }, here_only), common.is_agent({ address = "t6", agent = "claude" }, here_only) },
+  { false, true })
+check('machines = "local" plans no tab for another machine',
+  addresses(common.plan(data, {}, {}, common.config({ machines = "local" })).create), { "t2", "t3" })
+
 if #run.failures > 0 then
   print(#run.failures .. " of " .. run.count .. " checks failed:\n  " .. table.concat(run.failures, "\n  "))
   rex.stop(1)

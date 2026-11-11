@@ -20,6 +20,8 @@
 --   attach    = "auto"        how a tab attaches: "control" types into the agent
 --                             and resizes it to the tab; "watch" does neither;
 --                             "auto" controls agents without a Herdr app pane
+--   machines  = "all"         "local": only this machine's terminals, for when
+--                             every machine runs Rex with this plugin
 --   agents    = {}            more program names to treat as agents
 --   interval  = 2             seconds between checks of herdr-core
 --   autostart = true          start the manager when Rex loads its config

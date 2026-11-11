@@ -30,5 +30,19 @@ if [ "$mode" = auto ]; then
   esac
 fi
 
-[ "$mode" = watch ] && exec "$hc" attach --observe "$addr"
-exec "$hc" attach "$addr"
+# An attach that fails at once (the core was busy, or the connection to another
+# machine dropped) is tried again: a tab that closes counts as closed by you,
+# and stays closed. One that ran for a while, or whose terminal is gone, ends
+# the tab.
+tries=0
+while :; do
+  started=$(date +%s)
+  if [ "$mode" = watch ]; then "$hc" attach --observe "$addr"; else "$hc" attach "$addr"; fi
+  code=$?
+  [ "$code" -eq 0 ] && exit 0
+  [ $(( $(date +%s) - started )) -ge 5 ] && exit "$code"
+  tries=$((tries + 1))
+  [ "$tries" -ge 5 ] && exit "$code"
+  "$hc" get "$addr" >/dev/null 2>&1 || exit "$code"
+  sleep 1
+done

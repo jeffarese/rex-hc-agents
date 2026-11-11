@@ -70,6 +70,7 @@ require("hc-agents").setup{
   session = "herdr-core", -- the session that holds the tabs
   include = "agents",     -- which terminals get a tab (see below)
   attach = "auto",        -- how a tab attaches (see below)
+  machines = "all",       -- "local": only this machine's terminals (see below)
   agents = { "mybot" },   -- more program names to treat as agents
   interval = 2,           -- seconds between checks
   autostart = true,       -- start the manager when Rex loads its config
@@ -92,6 +93,11 @@ require("hc-agents").setup{
 | `"auto"` | Control an agent that has no pane in the Herdr app, and watch one that has |
 | `"control"` | Always control: you can type, and the agent is resized to the tab |
 | `"watch"` | Never type or resize (`hc attach --observe`) |
+
+`machines` decides whose terminals get a tab. herdr-core lists the terminals of every machine
+you added with `hc machine add`, and with `"all"` each of them gets a tab here. If those
+machines run Rex too, install the plugin on each with `machines = "local"`: every machine then
+shows its own agents, under its own host in Rex's sidebar.
 
 `hc` and `rex` are found in `~/.local/bin` or on `PATH`. Pass `hc = "/path"` or
 `rex = "/path"` to use others. Changing a setting and reloading Rex's config

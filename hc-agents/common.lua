@@ -20,6 +20,7 @@ M.KNOWN_AGENTS = {
 
 local INCLUDE = { agents = true, named = true, programs = true, all = true }
 local ATTACH = { auto = true, control = true, watch = true }
+local MACHINES = { all = true, ["local"] = true }
 -- Plain shells: with include = "programs", the Herdr app's own pane shells stay out.
 local SHELLS = { sh = true, bash = true, zsh = true, fish = true, dash = true, ksh = true,
   tcsh = true, csh = true, nu = true, pwsh = true, powershell = true, cmd = true, xonsh = true, elvish = true }
@@ -49,12 +50,17 @@ function M.config(opts)
   if not ATTACH[attach] then
     error('hc-agents: attach must be "auto", "control" or "watch", got ' .. tostring(attach), 0)
   end
+  local machines = opts.machines or "all"
+  if not MACHINES[machines] then
+    error('hc-agents: machines must be "all" or "local", got ' .. tostring(machines), 0)
+  end
   local agents = {}
   for _, name in ipairs(opts.agents or {}) do agents[#agents + 1] = tostring(name) end
   return {
     session = opts.session or "herdr-core",
     include = include,
     attach = attach,
+    machines = machines,
     agents = agents,
     interval = tonumber(opts.interval) or 2,
     autostart = opts.autostart ~= false,
@@ -74,6 +80,8 @@ end
 
 -- Whether a terminal from `hc ls --json` gets a tab.
 function M.is_agent(t, cfg)
+  -- With machines = "local", another machine's terminals are left to the Rex there.
+  if cfg.machines == "local" and M.machine(t.address) then return false end
   if cfg.include == "all" then return true end
   if M.is_coding_agent(t, cfg) then return true end
   local named = t.name ~= nil and t.name ~= ""
