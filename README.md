@@ -26,7 +26,6 @@ This is an unofficial plugin. It is not affiliated with Rex or Herdr.
 
 - [Rex](https://www.superlogical.com), with its `rex` command
 - [herdr-core](https://github.com/herdrdev/herdr-core) (`hc`); tested with 0.1.19
-- zsh
 
 ## Install
 
@@ -103,7 +102,7 @@ replaces the running manager within a few seconds.
 - **The manager:** when Rex loads its config, the plugin starts `manager.lua`
   in the background, with no tab of its own. It asks `hc ls` every 2 seconds
   and opens a tab for each new agent. The `herdr-core` session is created when
-  the first agent appears.
+  the first agent appears, and removed when its last tab is gone.
 - **Tab names:** an agent started with a name (`hc run --name`, herdr-pool
   lanes) is labeled with that name. An unnamed coding agent keeps the title it
   sets, such as Claude Code's task summary. Anything else is labeled after its

@@ -2,7 +2,7 @@
 --
 -- Runs in the background, without a tab of its own. Every few seconds it asks
 -- herdr-core for its live terminals and opens a tab in the agents session for
--- each new agent. A tab runs agent-tab.zsh, which attaches to the agent with
+-- each new agent. A tab runs agent-tab.sh, which attaches to the agent with
 -- `hc attach`; that passes the agent's status on to Rex, so the sidebar shows
 -- it. The tab closes when the agent ends or you detach (ctrl+\), and a tab
 -- you closed stays closed.
@@ -14,10 +14,19 @@ local cfg = common.config(rex.args)
 local HEARTBEAT = cfg.state_dir .. "/manager.heartbeat"
 local REOPEN = cfg.state_dir .. "/reopen"
 local CLOSED = cfg.state_dir .. "/closed"
-local TAB_SCRIPT = dir .. "agent-tab.zsh"
+local TAB_SCRIPT = dir .. "agent-tab.sh"
 -- This run's mark in the heartbeat: its settings and a token of its own.
 local SETTINGS = rex.json.encode(cfg)
-local ME = SETTINGS .. "\n" .. tostring(os.time()) .. "-" .. tostring(math.random(1e9))
+-- The token must differ between two managers that start in the same second, so
+-- it comes from the system, not from Lua's unseeded math.random.
+local function token()
+  local f = io.open("/dev/urandom", "rb")
+  local bytes = f and f:read(8)
+  if f then f:close() end
+  if not bytes or #bytes < 8 then return tostring(os.time()) .. "-" .. tostring(os.clock()) end
+  return (bytes:gsub(".", function(c) return string.format("%02x", c:byte()) end))
+end
+local ME = SETTINGS .. "\n" .. token()
 
 rex.exec({ "mkdir", "-p", cfg.state_dir })
 
@@ -51,6 +60,7 @@ local state = {
   closed = "",     -- the closed tabs as last written to the file
   beats = 0,       -- checks so far; the heartbeat's first line
   attached = nil,  -- the session id this script is attached to
+  hc_failed = false, -- the last `hc ls` failed, and that was logged
 }
 
 local function log(message)
@@ -67,7 +77,7 @@ local function tab(t)
         options = {
           command = {
             "/usr/bin/env", "HC_BIN=" .. cfg.hc, "HC_ATTACH=" .. cfg.attach,
-            "/bin/zsh", TAB_SCRIPT, t.address, common.title(t),
+            "/bin/sh", TAB_SCRIPT, t.address, common.title(t),
           },
         },
       },
@@ -98,15 +108,21 @@ local function tick()
   local tabs, opened = {}, {}
 
   local res, err = rex.exec({ cfg.hc, "ls", "--json" }, { timeout = 10 })
-  if not res or not res.ok then return end -- herdr-core isn't running
+  if not res or not res.ok then
+    -- herdr-core isn't running, or isn't installed. Say so once, not every check.
+    if not state.hc_failed then log("can't list herdr-core's terminals with " .. cfg.hc .. ": " .. tostring(err or (res and res.stderr) or "")) end
+    state.hc_failed = true
+    return
+  end
+  state.hc_failed = false
   local data = rex.json.decode(res.stdout)
   if type(data) ~= "table" then return end
 
   local sid, list_err = find_session()
   if list_err then return log(list_err) end
+  local view
   if sid then
     -- A script reads a session's view only once it is attached to it.
-    local view
     if state.attached ~= sid then
       local attached, attach_err = rex.call("session.attach", { session_id = sid })
       if not attached then return log(attach_err) end
@@ -122,6 +138,16 @@ local function tick()
   end
 
   local p = common.plan(data, tabs, state.known, cfg)
+
+  -- When its last agent ends, the session is left without a tab, and an app that is attached
+  -- keeps it in the sidebar. Nothing is in it, so it goes; the next agent makes it again.
+  if sid and #p.create == 0 and #(view.windows or {}) == 0 then
+    local _, destroy_err = rex.call("session.destroy", { session_id = sid })
+    if destroy_err then log("can't remove the empty session: " .. tostring(destroy_err)) end
+    state.attached = nil
+    sid = nil
+  end
+
   for _, t in ipairs(p.create) do
     local spec = tab(t)
     local ok, new_err
@@ -146,6 +172,8 @@ local function tick()
   -- offers to take it over ("Sized by another client"). The manager shows nothing, so it
   -- gives its tabs up: the first app to show one sizes it.
   if sid and next(opened) then
+    -- A session this check created is not attached yet, and giving up needs that.
+    if state.attached ~= sid and rex.call("session.attach", { session_id = sid }) then state.attached = sid end
     local _, disown_err = rex.call("session.disown_block", { session_id = sid })
     if disown_err then log("can't give up the new tabs: " .. tostring(disown_err)) end
   end
