@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""A scripted stand-in for Claude Code, for the README's demo.
+
+It reports its status with OSC 7501 as Claude Code does (working, blocked on
+a permission, done), so herdr-core and Rex follow it, and draws a screen
+modelled on Claude Code's. The task picks one of the stories below. Nothing in
+it calls a model, and the files and commands it names don't exist.
+"""
+import base64
+import os
+import signal
+import sys
+import textwrap
+import time
+import tty
+
+PACE = float(os.environ.get("DEMO_PACE", "1"))
+DIM, GREEN, RESET = "\x1b[2m", "\x1b[32m", "\x1b[0m"
+GREY, RULE, ACCENT = "\x1b[38;2;153;153;153m", "\x1b[38;2;136;136;136m", "\x1b[38;2;215;119;87m"
+
+TASK = next((a for a in reversed(sys.argv[1:]) if not a.startswith("-")), "")
+TITLE = (TASK.strip().splitlines() or ["Waiting for a task"])[0]
+
+
+def b64(s):
+    return base64.b64encode(s.encode()).decode()
+
+
+def status(state, msg=None, kind=None):
+    pairs = [f"state={state}", "app=claude", f"title={b64(TITLE)}"]
+    if kind:
+        pairs.append(f"kind={kind}")
+    if msg:
+        pairs.append(f"msg={b64(msg)}")
+    sys.stdout.write("\x1b]7501;" + ":".join(pairs) + "\x1b\\")
+    sys.stdout.flush()
+
+
+class Screen:
+    """What it has said, a spinner while it works, a question when it asks one, and the input box at
+    the bottom, laid out again on every resize (hc attach)."""
+
+    def __init__(self):
+        self.said = []
+        self.spinner = None
+        self.ask = None
+        signal.signal(signal.SIGWINCH, lambda *_: self.draw())
+
+    def say(self, prefix, text, style="", pause=0.0):
+        self.said.append((prefix, text, style))
+        self.draw()
+        time.sleep(pause * PACE)
+
+    def draw(self):
+        try:
+            cols, rows = os.get_terminal_size(sys.stdout.fileno())
+        except OSError:
+            cols, rows = 100, 30
+        width = max(20, cols - 1)
+        lines = []
+        for prefix, text, style in self.said:
+            wrapped = textwrap.wrap(text, max(10, width - len(prefix)), break_on_hyphens=False) or [""]
+            for i, line in enumerate(wrapped):
+                lines.append((prefix if i == 0 else " " * len(prefix)) + style + line + (RESET if style else ""))
+        if self.spinner:
+            lines += ["", f"{ACCENT}✻{RESET} {self.spinner} {GREY}(esc to interrupt){RESET}"]
+        if self.ask:
+            lines += ["", RULE + "─" * cols + RESET, f" {ACCENT}Bash command{RESET}", "", f"   {self.ask}", "",
+                      " Do you want to proceed?", f" {ACCENT}❯ 1. Yes{RESET}", "   2. No, and tell Claude what to do differently"]
+        else:
+            lines += ["", RULE + "─" * cols + RESET, "❯ ", RULE + "─" * cols + RESET,
+                      f"  {GREY}shop │ a scripted stand-in for the demo{RESET}"]
+        sys.stdout.write("\x1b[?25l\x1b[H\x1b[2J" + "\r\n".join(lines[-rows:]))
+        sys.stdout.flush()
+
+
+def tool(s, name, arg, result=None, pause=1.2):
+    s.spinner = {"Read": "Reading…", "Update": "Editing…", "Bash": "Running…"}.get(name, "Working…")
+    status("working", f"{name}({arg})")
+    s.say("⏺ ", f"{name}({arg})", pause=pause)
+    if result:
+        s.say("  ⎿  ", result, DIM, pause=0.3)
+
+
+def permission(s, command):
+    """Asks before running a command, and waits for a key as Claude Code does."""
+    s.spinner = None
+    s.ask = command
+    status("blocked", f"Run {command}?", kind="permission")
+    s.draw()
+    os.read(sys.stdin.fileno(), 1)
+    s.ask = None
+
+
+def story_redirect(s):
+    tool(s, "Read", "src/auth/session.ts", "Read 142 lines", 2.2)
+    tool(s, "Read", "src/auth/redirect.ts", "Read 58 lines", 2.0)
+    s.say("⏺ ", "The redirect target is read before the session cookie is set, so a fresh login bounces back "
+                "to /login. I'll set the cookie first.", pause=2.6)
+    tool(s, "Update", "src/auth/redirect.ts", "Updated src/auth/redirect.ts with 6 additions and 4 removals", 2.4)
+    tool(s, "Bash", "npm test -- auth", None, 3.0)
+    s.say("  ⎿  ", "18 passed (18)", GREEN, 0.6)
+    return "Fixed the login redirect loop: the session cookie is now set before the redirect. The auth tests pass."
+
+
+def story_retries(s):
+    tool(s, "Read", "src/webhooks.ts", "Read 96 lines", 2.0)
+    s.say("⏺ ", "A delivery fails for good on the first 5xx. I'll retry those with backoff and keep failing "
+                "at once on a 4xx.", pause=2.2)
+    tool(s, "Update", "src/webhooks.ts", "Updated src/webhooks.ts with 21 additions and 3 removals", 2.2)
+    permission(s, "npm run test:integration")
+    tool(s, "Bash", "npm run test:integration", None, 3.0)
+    s.say("  ⎿  ", "42 passed (42)", GREEN, 0.6)
+    return "Webhook deliveries now retry 5xx answers three times with backoff. The integration tests pass."
+
+
+def story_docs(s):
+    for path, n in [("README.md", 88), ("docs/api.md", 240), ("docs/webhooks.md", 131), ("docs/billing.md", 207),
+                    ("docs/deploy.md", 175), ("docs/auth.md", 96), ("docs/errors.md", 64)]:
+        tool(s, "Read", path, f"Read {n} lines", 2.6)
+        tool(s, "Update", path, f"Updated {path}", 2.6)
+    return "Brought the docs in line with the current API."
+
+
+def main():
+    if sys.stdin.isatty():
+        tty.setraw(sys.stdin.fileno())
+    s = Screen()
+    status("idle")
+    s.say("> ", TITLE, pause=0.8)
+    began = time.time()
+    t = TITLE.lower()
+    story = story_redirect if "redirect" in t else story_retries if "retr" in t else story_docs
+    summary = story(s)
+    s.spinner = None
+    s.say("⏺ ", summary)
+    s.say("", f"✻ Worked for {int(time.time() - began)}s", DIM)
+    status("done", summary)
+    while True:  # waits at its prompt like Claude Code, until it is closed
+        signal.pause()
+
+
+if __name__ == "__main__":
+    main()

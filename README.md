@@ -3,12 +3,14 @@
 Your [herdr-core](https://github.com/herdrdev/herdr-core) (`hc`) agents as tabs
 in [Rex](https://www.superlogical.com)'s sidebar, with their live status.
 
-```
-herdr-core
-  r9-feel    ◐  ← working
-  r9-art     ◆  ← waiting on you (permission, a question, a login)
-  fix-auth   ✓  ← done, not looked at yet
-```
+<p align="center">
+  <img src="docs/media/demo.gif" width="960" alt="A Rex window with a shell in a session called shop. Three hc run commands start Claude Code agents named fix-auth, retries and docs. A herdr-core session appears in the sidebar with a tab for each, all marked as working. The retries tab changes to show the question it is waiting on, and fix-auth is marked done. A click on retries shows the agent asking to run a command. It is answered, the agent finishes, and the fix-auth and docs tabs are opened in turn.">
+</p>
+<p align="center"><sub>
+  40 seconds, unedited (<a href="docs/media/demo.mp4">MP4</a>). Rex, herdr-core and the plugin are real. The
+  agents are a script standing in for Claude Code, and the project is made up.
+  <a href="docs/demo">How it was recorded.</a>
+</sub></p>
 
 herdr-core keeps agents running in the background, on this machine or another
 one, whether or not a terminal is showing them. To see one in Rex you would
