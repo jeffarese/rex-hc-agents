@@ -142,6 +142,14 @@ local function tick()
   end
   state.known = p.known
 
+  -- Whoever opens a tab owns its terminal's size, and an app that shows the tab later only
+  -- offers to take it over ("Sized by another client"). The manager shows nothing, so it
+  -- gives its tabs up: the first app to show one sizes it.
+  if sid and next(opened) then
+    local _, disown_err = rex.call("session.disown_block", { session_id = sid })
+    if disown_err then log("can't give up the new tabs: " .. tostring(disown_err)) end
+  end
+
   -- Remember the tabs the user closed, so they stay closed after a restart.
   for address in pairs(opened) do tabs[address] = true end
   local closed = table.concat(common.closed(p.known, tabs), "\n")

@@ -4,9 +4,24 @@
 #
 #   ./install.sh            install, or update the link
 #   ./install.sh --remove   unlink it and drop the require line
+#
+# Without a clone, the script makes one in ~/.local/share/rex-hc-agents (or updates it):
+#
+#   curl -fsSL https://raw.githubusercontent.com/jeffarese/rex-hc-agents/main/install.sh | sh
 set -eu
 
-here=$(cd "$(dirname "$0")" && pwd)
+here=$(cd "$(dirname "$0")" 2>/dev/null && pwd || pwd)
+# Run from a pipe, or from a copy of this file alone: clone the rest, where it can stay.
+if [ ! -f "$here/hc-agents/init.lua" ]; then
+  repo=${REX_HC_AGENTS_REPO:-https://github.com/jeffarese/rex-hc-agents.git}
+  here=${XDG_DATA_HOME:-$HOME/.local/share}/rex-hc-agents
+  if [ -d "$here/.git" ]; then
+    git -C "$here" pull --quiet --ff-only
+  else
+    mkdir -p "$(dirname "$here")"
+    git clone --quiet "$repo" "$here"
+  fi
+fi
 conf_dir=${XDG_CONFIG_HOME:-$HOME/.config}/rex
 init=${REX_CONFIG:-$conf_dir/init.lua}
 link=$(dirname "$init")/hc-agents

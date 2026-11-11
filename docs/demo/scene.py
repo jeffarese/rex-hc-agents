@@ -45,20 +45,15 @@ def windows():
     return [x for x in cua("list_windows", {"pid": PID}).get("windows", []) if x.get("is_on_screen")]
 
 
-def press(window_id, role, name, must=True):
-    step = {"click": {"role": role, "name": name}}
-    if not must:
-        step["timeout_ms"] = 2000
-    r = cua("run_steps", {"pid": PID, "window_id": window_id, "steps": [step]})
-    if must and not r.get("ok"):
+def press(window_id, role, name):
+    r = cua("run_steps", {"pid": PID, "window_id": window_id, "steps": [{"click": {"role": role, "name": name}}]})
+    if not r.get("ok"):
         raise SystemExit(f"couldn't press {name}: {json.dumps(r)[:300]}")
 
 
 def show(window_id, name):
-    """Clicks an agent's tab in the sidebar. Its terminal was sized before the app showed it, so the
-    tab takes it over, as a click on the notice does."""
+    """Clicks an agent's tab in the sidebar."""
     press(window_id, "radiobutton", name)
-    press(window_id, "button", "Take over", must=False)
 
 
 def capture(window_id, stop):
@@ -95,7 +90,12 @@ def main():
     main_window = max(windows(), key=lambda x: (bool(x.get("title")), x["bounds"]["width"]))
     wid = main_window["window_id"]
     b = main_window["bounds"]
-    cua("set_window_frame", {"pid": PID, "window_id": wid, "x": b["x"] + 20, "y": b["y"] + 60, "width": 1300, "height": 760})
+    # Away from the pointer, which would draw hover states and tooltips into the picture: in
+    # the half of the window's old frame that the pointer is not in.
+    pointer = cua("get_cursor_position", {})
+    low = pointer.get("y", b["y"]) < b["y"] + b["height"] / 2
+    y = b["y"] + max(60, b["height"] - 760 - 40) if low else b["y"] + 60
+    cua("set_window_frame", {"pid": PID, "window_id": wid, "x": b["x"] + 20, "y": y, "width": 1300, "height": 760})
     # Only the stage's server in the sidebar: the app also knows your hosts.
     press(wid, "button", "Filter Hosts")
     menu = min(windows(), key=lambda x: x["bounds"]["width"])

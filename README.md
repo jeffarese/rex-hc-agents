@@ -7,7 +7,7 @@ in [Rex](https://www.superlogical.com)'s sidebar, with their live status.
   <img src="docs/media/demo.gif" width="960" alt="A Rex window with a shell in a session called shop. Three hc run commands start Claude Code agents named fix-auth, retries and docs. A herdr-core session appears in the sidebar with a tab for each, all marked as working. The retries tab changes to show the question it is waiting on, and fix-auth is marked done. A click on retries shows the agent asking to run a command. It is answered, the agent finishes, and the fix-auth and docs tabs are opened in turn.">
 </p>
 <p align="center"><sub>
-  40 seconds, unedited (<a href="docs/media/demo.mp4">MP4</a>). Rex, herdr-core and the plugin are real. The
+  28 seconds, unedited (<a href="docs/media/demo.mp4">MP4</a>). Rex, herdr-core and the plugin are real. The
   agents are a script standing in for Claude Code, and the project is made up.
   <a href="docs/demo">How it was recorded.</a>
 </sub></p>
@@ -31,15 +31,14 @@ This is an unofficial plugin. It is not affiliated with Rex or Herdr.
 ## Install
 
 ```sh
-git clone https://github.com/jeffarese/rex-hc-agents.git
-cd rex-hc-agents
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/jeffarese/rex-hc-agents/main/install.sh | sh
 ```
 
-The script does three things:
+The script does four things:
 
-- **Links the plugin:** `hc-agents/` is linked into `~/.config/rex/`, so keep
-  the clone where it is. `git pull` updates the plugin.
+- **Fetches the plugin:** it clones this repository into `~/.local/share/rex-hc-agents`. Run
+  the same line again to update.
+- **Links it:** `hc-agents/` is linked into `~/.config/rex/`.
 - **Loads it:** this line is added to your `init.lua`:
 
   ```lua
@@ -48,7 +47,8 @@ The script does three things:
 
 - **Starts it:** Rex's config is checked and reloaded.
 
-`./install.sh --remove` takes the link and the line out again.
+From a clone of your own, `./install.sh` links that clone instead, and `./install.sh --remove`
+takes the link and the line out again.
 
 ## Using it
 
