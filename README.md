@@ -1,11 +1,7 @@
-# hc-agents for Rex
+# rex-hc-agents
 
-**Your [herdr-core](https://github.com/herdrdev/herdr-core) agents in Rex's
-sidebar.** Every agent that `hc` runs, on this machine or another one, gets a
-tab of its own in a `herdr-core` session. Each tab is attached to its agent
-and passes its status on to Rex. The sidebar then marks which agents are
-working, which are waiting on you, and which have finished, and so does the
-Activity view (⌘.).
+Your [herdr-core](https://github.com/herdrdev/herdr-core) (`hc`) agents as tabs
+in [Rex](https://www.superlogical.com)'s sidebar, with their live status.
 
 ```
 herdr-core
@@ -14,96 +10,140 @@ herdr-core
   fix-auth   ✓  ← done, not looked at yet
 ```
 
-## How it works
+herdr-core keeps agents running in the background, on this machine or another
+one, whether or not a terminal is showing them. To see one in Rex you would
+run `hc attach` by hand, per agent. This plugin does that for you: every agent
+`hc` runs gets a tab of its own in a `herdr-core` session, opened when the
+agent starts and closed when it ends. Each tab passes the agent's status on to
+Rex, so the sidebar and the Activity view (⌘.) show which agents are working,
+which are waiting on you, and which have finished.
 
-- **When Rex loads its config**, the plugin starts `manager.lua` in the
-  background. It has no tab of its own.
-- **The manager** asks `hc ls` every 2 seconds. Each new agent gets a tab in
-  the `herdr-core` session, which is created when the first one appears. An
-  agent started with a name (`hc run --name`, herdr-pool lanes) is labeled
-  with that name. An unnamed coding agent keeps the title it sets, such as
-  Claude Code's task summary. Anything else is labeled after its program and,
-  for another machine, the machine (`zsh · mini`).
-- **Each agent tab** runs `hc attach`. An agent with no pane in the Herdr app
-  gets a real attach: you can type into it and it is resized to the tab. An
-  agent the Herdr app shows in a pane is only watched (`--observe`), so the
-  tab never resizes a pane you are using there. Either way herdr-core passes
-  the agent's own OSC 7501 status reports through, so Rex shows the real
-  state, not a guess.
-- **A tab closes** when its agent ends or when you detach from it (ctrl+\\).
-  A tab you closed or detached stays closed, also across restarts.
-- **If the manager dies** it is started again within a few seconds. Only one
-  runs at a time, however often Rex loads its config.
+This is an unofficial plugin. It is not affiliated with Rex or Herdr.
 
-An agent is a terminal whose program herdr-core knows as a coding agent
-(Claude Code, Codex, OpenCode, Pi, Gemini, Amp and others) or that has reported
-a status. Scripts and shells stay out unless you set `include` (see Settings).
+## Requirements
 
-It needs `hc` (herdr-core), `rex` and zsh.
+- [Rex](https://www.superlogical.com), with its `rex` command
+- [herdr-core](https://github.com/herdrdev/herdr-core) (`hc`); tested with 0.1.19
+- zsh
+
+## Install
+
+```sh
+git clone https://github.com/jeffarese/rex-hc-agents.git
+cd rex-hc-agents
+./install.sh
+```
+
+The script does three things:
+
+- **Links the plugin:** `hc-agents/` is linked into `~/.config/rex/`, so keep
+  the clone where it is. `git pull` updates the plugin.
+- **Loads it:** this line is added to your `init.lua`:
+
+  ```lua
+  require("hc-agents").setup{}
+  ```
+
+- **Starts it:** Rex's config is checked and reloaded.
+
+`./install.sh --remove` takes the link and the line out again.
 
 ## Using it
 
 | To | Do |
 | --- | --- |
 | Find an agent | Rex's sidebar, the Activity view (⌘.), or any Rex picker |
-| Type into an agent | just type, when it has no Herdr app pane |
-| Close an agent's tab | close it, or press ctrl+\\ in it; the agent keeps running |
+| Type into an agent | Just type, when the agent has no pane in the Herdr app |
+| Close an agent's tab | Close it, or press `ctrl+\` in it. The agent keeps running. |
 | Get closed tabs back | **herdr-core: Reopen Closed Agent Tabs** in the command palette |
 
-## Install
+A tab you closed stays closed, also across restarts, until you reopen it.
 
-```sh
-./install.sh
-```
+## Settings
 
-It links `hc-agents/` into `~/.config/rex/`, adds this line to `init.lua`, and
-reloads Rex's config:
-
-```lua
-require("hc-agents").setup{}
-```
-
-`./install.sh --remove` takes it out again.
-
-### Settings
+All settings are optional. These are the defaults, apart from `agents`, which
+is empty:
 
 ```lua
 require("hc-agents").setup{
   session = "herdr-core", -- the session that holds the tabs
-  include = "agents",     -- "named" adds every named terminal; "programs" adds scripts, shells
-                          -- and other programs (all but Herdr's pane shells); "all" adds everything
-  attach = "auto",        -- "control": always type and resize; "watch": never
+  include = "agents",     -- which terminals get a tab (see below)
+  attach = "auto",        -- how a tab attaches (see below)
   agents = { "mybot" },   -- more program names to treat as agents
   interval = 2,           -- seconds between checks
   autostart = true,       -- start the manager when Rex loads its config
 }
 ```
 
-`hc` and `rex` are found in `~/.local/bin`, or on `PATH`. Pass `hc = "/path"`
-or `rex = "/path"` to use others. The plugin keeps a heartbeat, the closed tabs and
-the manager's log in `~/.local/state/rex-hc-agents/`. Changing a setting and
-reloading Rex's config replaces the running manager within a few seconds.
+`include` decides which herdr-core terminals get a tab:
 
-## Tests
+| Value | Terminals |
+| --- | --- |
+| `"agents"` | Coding agents herdr-core knows (Claude Code, Codex, OpenCode, Pi, Gemini, Amp and others), plus anything that has reported a status |
+| `"named"` | Also every terminal started with a name (`hc run --name`) |
+| `"programs"` | Also scripts, shells and other programs: everything except the Herdr app's own pane shells |
+| `"all"` | Every terminal |
+
+`attach` decides what a tab may do to its agent:
+
+| Value | Behavior |
+| --- | --- |
+| `"auto"` | Control an agent that has no pane in the Herdr app, and watch one that has |
+| `"control"` | Always control: you can type, and the agent is resized to the tab |
+| `"watch"` | Never type or resize (`hc attach --observe`) |
+
+`hc` and `rex` are found in `~/.local/bin` or on `PATH`. Pass `hc = "/path"` or
+`rex = "/path"` to use others. Changing a setting and reloading Rex's config
+replaces the running manager within a few seconds.
+
+## How it works
+
+- **The manager:** when Rex loads its config, the plugin starts `manager.lua`
+  in the background, with no tab of its own. It asks `hc ls` every 2 seconds
+  and opens a tab for each new agent. The `herdr-core` session is created when
+  the first agent appears.
+- **Tab names:** an agent started with a name (`hc run --name`, herdr-pool
+  lanes) is labeled with that name. An unnamed coding agent keeps the title it
+  sets, such as Claude Code's task summary. Anything else is labeled after its
+  program and, on another machine, the machine (`zsh · mini`).
+- **Status:** each tab runs `hc attach`, and herdr-core passes the agent's own
+  [OSC 7501 status reports](https://www.superlogical.com/rex/docs/build/program-status)
+  through. Rex shows the state the agent reported, not a guess.
+- **Watched agents:** an agent the Herdr app shows in a pane is only watched
+  by default, so a Rex tab never resizes a pane you are using there.
+- **One manager:** only one runs at a time, however often Rex loads its
+  config. If it dies, it is started again within a few seconds.
+- **State:** a heartbeat, the list of closed tabs and the manager's log live
+  in `~/.local/state/rex-hc-agents/`.
+
+## Known limits
+
+- **Narrow tabs:** a tab narrower than a watched agent's terminal shows the
+  agent's screen cut off, because watching never resizes it.
+- **`rex config check` starts the manager too:** the check runs the plugin.
+  That is safe to repeat, since a second manager with the same settings exits
+  at once.
+
+## Development
 
 ```sh
 rex do tests/common_test.lua
 ```
 
-The tests cover the logic in `hc-agents/common.lua`: which terminals get a
-tab and when the manager opens one. Rex runs Lua 5.1, so they run under
-`rex do`.
+The tests cover the logic in `hc-agents/common.lua`: which terminals get a tab
+and when the manager opens one. Rex runs Lua 5.1, so they run under `rex do`.
 
-## Notes
+One Rex Lua quirk shapes the code. When a protected call catches an error,
+closures stop sharing the plain locals they captured: each gets its own frozen
+copy, while table fields stay shared. Rex's timers catch errors this way, so
+the manager keeps its state in a table. To reproduce it:
 
-- **Rex's Lua and pcall.** When a protected call catches an error, closures stop
-  sharing the plain locals they captured. Each one gets its own frozen copy,
-  while table fields stay shared. Rex's timers catch errors this way, so the
-  manager keeps its state in a table. Reproduce it with
-  `rex do -e 'local n=0; local function f() n=n+1 end; f(); pcall(error, "x"); f(); return n'`,
-  which returns 1 instead of 2.
-- **`rex config check` runs the plugin too**, including starting the manager.
-  That is safe to repeat: a second manager with the same settings leaves at once.
-- **A tab narrower than the agent's terminal** shows a watched agent's screen
-  cut to the tab, because watching never resizes it. This applies to agents
-  with a Herdr app pane, or to `attach = "watch"`.
+```sh
+rex do -e 'local n=0; local function f() n=n+1 end; f(); pcall(error, "x"); f(); return n'
+```
+
+This returns 1 instead of 2.
+
+## License
+
+[MIT](LICENSE)
