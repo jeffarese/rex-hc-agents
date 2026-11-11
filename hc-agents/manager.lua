@@ -158,6 +158,8 @@ local function tick()
     else
       ok, new_err = rex.call("session.create", { label = cfg.session, initial_windows = { spec } })
       sid = ok and ok.session_id
+      -- The next tab of this check, and giving the tabs up, need the session attached.
+      if sid and rex.call("session.attach", { session_id = sid }) then state.attached = sid end
     end
     if ok then
       opened[t.address] = true
@@ -172,8 +174,6 @@ local function tick()
   -- offers to take it over ("Sized by another client"). The manager shows nothing, so it
   -- gives its tabs up: the first app to show one sizes it.
   if sid and next(opened) then
-    -- A session this check created is not attached yet, and giving up needs that.
-    if state.attached ~= sid and rex.call("session.attach", { session_id = sid }) then state.attached = sid end
     local _, disown_err = rex.call("session.disown_block", { session_id = sid })
     if disown_err then log("can't give up the new tabs: " .. tostring(disown_err)) end
   end
