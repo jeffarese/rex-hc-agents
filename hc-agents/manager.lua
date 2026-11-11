@@ -187,7 +187,9 @@ local function tick()
   end
 end
 
-for address in (common.read_file(CLOSED) or ""):gmatch("[^\n]+") do
+-- The file as it is, so an entry that no longer applies is written out of it.
+state.closed = common.read_file(CLOSED) or ""
+for address in state.closed:gmatch("[^\n]+") do
   state.known[address] = true
 end
 
